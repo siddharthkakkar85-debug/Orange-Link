@@ -1361,8 +1361,7 @@ function render(){
     </div>
     <div class="ctrl">
       <div class="sw"><span class="si">🔍</span>
-        <input class="sinput" placeholder="Search product or size…" value="${search}"
-          oninput="search=this.value;render()">
+        <input class="sinput" id="search-input" placeholder="Search product or size…" value="${search}">
       </div>
       <select class="fsel" onchange="catF=this.value;render()">
         <option value="">All Categories</option>
@@ -1392,6 +1391,84 @@ function render(){
     </footer>
     ${renderModal()}
   `;
+  attachSearch();
+}
+
+// Attach search listener after render without losing focus
+function attachSearch(){
+  const inp = document.getElementById('search-input');
+  if(!inp) return;
+  inp.addEventListener('input', function(){
+    search = this.value;
+    const pos = this.selectionStart;
+    renderTables();
+    // restore focus and cursor
+    const el = document.getElementById('search-input');
+    if(el){ el.focus(); el.setSelectionRange(pos,pos); }
+  });
+}
+
+// Split render into two parts: shell (header/ctrl) and tables only
+function renderTables(){
+  const fl = filtered();
+  const byCat={};
+  CATS.forEach(c=>{byCat[c.k]=[];});
+  fl.forEach((d)=>{
+    const gi=DATA.indexOf(d);
+    if(byCat[d.cat])byCat[d.cat].push({...d,_idx:gi});
+  });
+
+  let tables="";
+  CATS.forEach(cat=>{
+    const rows=byCat[cat.k];
+    if(!rows||!rows.length)return;
+    const trows=rows.map(it=>{
+      const cc=it.cur==="EUR"?"eur":it.cur==="USD"?"usd":"gbp";
+      const pcs=it.pcs?Number(it.pcs).toFixed(2):"—";
+      const inc=((it.inc||"")+" "+(it.loc||"")).trim()||"—";
+      const packChip=it.pack?(it.pack.toLowerCase().includes("can")?'<span class="pk-can">CAN</span>':'<span class="pk-btl">BTL</span>'):"—";
+      const priceClass=it.ytd?"pc":"pc-best";
+      let ytdCell="";
+      if(showYTD){
+        if(it.ytd){
+          ytdCell=`<div class="ytd-val">${it.cur} ${Number(it.ytd).toFixed(2)}</div><span class="ytd-label">YTD low</span>`;
+        } else {
+          ytdCell=`<span class="ytd-none">—</span>`;
+        }
+      }
+      return `<tr>
+        <td class="pn">${it.p}${it.age?'<span class="at">'+it.age+'</span>':""}</td>
+        <td class="mo">${it.sz}</td>
+        <td class="mo">${it.cfg||"—"}</td>
+        <td><span class="ct ${cc}">${it.cur}</span></td>
+        <td class="${priceClass}">${pcs}</td>
+        ${showYTD?`<td class="ytd-cell">${ytdCell}</td>`:""}
+        <td>${packChip}</td>
+        <td class="ic">${inc}</td>
+        <td class="${lc(it.lead)}">${it.lead||"—"}</td>
+        <td style="text-align:center"><button class="eb" onclick="openModal(${it._idx})">Enquire</button></td>
+      </tr>`;
+    }).join("");
+    tables+=`<div class="cb">
+      <div class="cl"><span class="ci">${cat.i}</span><span class="cn">${cat.l}</span>
+      <span class="cc">${rows.length}</span><div class="cline"></div></div>
+      <table><thead><tr>
+        <th>Product</th><th>Size</th><th>Case Config</th><th>Currency</th>
+        <th class="r">Current Price/Case</th>
+        ${showYTD?'<th class="r">YTD Best</th>':""}
+        <th class="c">Pack</th>
+        <th>Incoterm / Location</th><th>Lead Time</th><th class="c">Enquire</th>
+      </tr></thead><tbody>${trows}</tbody></table>
+    </div>`;
+  });
+
+  if(!tables)tables=`<div class="empty"><p>No products match your search.</p></div>`;
+
+  const tw = document.querySelector('.tw');
+  if(tw) tw.innerHTML = tables;
+
+  const rcnt = document.querySelector('.rcnt');
+  if(rcnt) rcnt.textContent = fl.length + ' lines';
 }
 
 render();
